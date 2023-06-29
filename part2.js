@@ -8,56 +8,48 @@ function buildGrid(size) {
 
 // Function to randomly place ships on the grid
 function placeShips(grid) {
+
   const shipSizes = [2, 3, 3, 4, 5];
 
   for (const shipSize of shipSizes) {
     let shipPlaced = false;
     while (!shipPlaced) {
+
       const orientation = Math.random() < 0.5 ? 'horizontal' : 'vertical';
       const { row, col } = generateRandomCoordinate(grid);
 
       if (isValidPlacement(grid, row, col, shipSize, orientation)) {
-        if (orientation === 'horizontal') {
-          for (let i = col; i < col + shipSize; i++) {
-            grid[row][i] = 'X';
-          }
-        } else {
-          for (let i = row; i < row + shipSize; i++) {
-            grid[i][col] = 'X';
-          }
-        }
+        placeShipOnGrid(grid, row, col, shipSize, orientation);
         shipPlaced = true;
       }
     }
   }
 }
 
+function placeShipOnGrid(grid, row, col, shipSize, orientation) {
+  const [rowDelta, colDelta] = orientation === 'horizontal' ? [0, 1] : [1, 0];
+
+  for (let i = 0; i < shipSize; i++) {
+    grid[row + rowDelta * i][col + colDelta * i] = 'X';
+  }
+}
+
 // Function to generate a random coordinate on the grid
 function generateRandomCoordinate(grid) {
-  const row = Math.floor(Math.random() * grid.length);
-  const col = Math.floor(Math.random() * grid.length);
+  const [row, col] = [1, 2].map(() => Math.floor(Math.random() * grid.length));
   return { row, col };
 }
 
 // Function to check if a ship placement is valid
 function isValidPlacement(grid, row, col, shipSize, orientation) {
-  if (orientation === 'horizontal') {
-    if (col + shipSize > grid.length) {
+  const axis = orientation === 'horizontal' ? col : row;
+  if (axis + shipSize > grid.length) {
+    return false;
+  }
+  for (let i = col; i < axis + shipSize; i++) {
+    const cond = orientation === 'horizontal' ? grid[row][i] : grid[i][col]
+    if (cond === 'X') {
       return false;
-    }
-    for (let i = col; i < col + shipSize; i++) {
-      if (grid[row][i] === 'X') {
-        return false;
-      }
-    }
-  } else {
-    if (row + shipSize > grid.length) {
-      return false;
-    }
-    for (let i = row; i < row + shipSize; i++) {
-      if (grid[i][col] === 'X') {
-        return false;
-      }
     }
   }
   return true;
@@ -90,13 +82,35 @@ function convertInput(input) {
   return { row, col };
 }
 
-// Function to check if all battleships have been destroyed
-function allBattleshipsDestroyed(grid) {
-  for (const row of grid) {
-    if (row.includes('X')) {
-      return false;
+// Function to reset the grid by clearing sunken ships
+function resetGrid(grid) {
+  for (let row = 0; row < grid.length; row++) {
+    for (let col = 0; col < grid.length; col++) {
+      if (grid[row][col] === 'O') {
+        grid[row][col] = ' ';
+      }
     }
+  } 
+}
+
+// Function to check if a battleship has been destroyed
+function isBattleshipDestroyed(grid, row, col) {
+  const size = grid.length;
+
+  // Check if the battleship symbol is present in any adjacent cells
+  if (row > 0 && grid[row - 1][col] === 'X') {
+    return false;
   }
+  if (row < size - 1 && grid[row + 1][col] === 'X') {
+    return false;
+  }
+  if (col > 0 && grid[row][col - 1] === 'X') {
+    return false;
+  }
+  if (col < size - 1 && grid[row][col + 1] === 'X') {
+    return false;
+  }
+
   return true;
 }
 
@@ -111,37 +125,48 @@ function playBattleship() {
   placeShips(grid);
 
   let battleshipsRemaining = 5;
+  let gameOver = false;
 
-  while (true) {
-    console.clear();
+  while (!gameOver) {
     console.log('Enter a location to strike (e.g., A1): ');
     printGrid(grid);
-    const input = readline.question('> ');
+    try {
 
-    const { row, col } = convertInput(input);
+      const input = readline.question('> ').toUpperCase();
+      const { row, col } = convertInput(input);
 
-    if (grid[row][col] === 'X') {
-      grid[row][col] = ' ';
-      battleshipsRemaining--;
-      console.log(`Hit! You have sunk a battleship. ${battleshipsRemaining} ship(s) remaining.`);
-    } else if (grid[row][col] === 'O') {
-      console.log('You have already picked this location. Miss!');
-    } else {
-      console.log('You have missed!');
-    }
-
-    grid[row][col] = 'O';
-
-    if (battleshipsRemaining === 0) {
-      console.log('You have destroyed all battleships.');
-      const playAgain = readline.question('Would you like to play again? (Y/N) ');
-
-      if (playAgain.toUpperCase() === 'Y') {
-        battleshipsRemaining = 5;
-        placeShips(grid);
+      if (grid[row][col] === 'X') {
+        grid[row][col] = ' ';
+        if (isBattleshipDestroyed(grid, row, col)){
+          battleshipsRemaining--
+          console.log('Final Hit! You have sunk a battleship.')
+        };
+        console.log(`Hit! ${battleshipsRemaining} ship(s) remaining.`);
+        if (isBattleshipDestroyed(grid, row, col)) {
+          console.log('Battleship destroyed!');
+        }
+      } else if (grid[row][col] === 'O') {
+        console.log('You have already picked this location. Try Again!');
       } else {
-        break;
+        console.log('You have missed! Try Again!');
       }
+
+      grid[row][col] = 'O';
+
+      if (battleshipsRemaining === 0) {
+        console.log('You have destroyed all battleships.');
+
+        const playAgain = readline.question('Would you like to play again? (Y/N) ');
+
+        if (playAgain.toUpperCase() === 'Y') {
+          resetGrid(grid);
+          placeShips(grid);
+        } else {
+          break;
+        }
+      }
+    } catch (error) {
+      console.log('Please Enter a Valid Command!');
     }
   }
 
